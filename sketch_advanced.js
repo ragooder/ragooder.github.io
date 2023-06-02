@@ -75,7 +75,7 @@ function draw() {
 
   let rb_given_a;
   let rb_given_no_a;
-  
+
   rb_given_a = r11_d / ra;
   rb_given_no_a = r01_d / (1 - ra);
 
@@ -90,7 +90,7 @@ function draw() {
   } else {
     agg_vol_d = risked_vol / (1 - r00_d);
   }
-  
+
   let sx = 20;
   let sy = 700;
   let sx2 = width / 2 + sx;
@@ -110,9 +110,13 @@ function draw() {
   line(600, 520, 600, height);
   line(0, 520, width, 520);
   line(967, 45, 967, 75);
-  line(tx - 2 * tsx, ty + tsyo + 10, tx + 4.5 * tsx, ty + tsyo + 10)
-  line(tx - 2 * tsx, ty + tsyo + tsy * 4 + 20, 
-       tx + 4.5 * tsx, ty + tsy * 4 + tsyo + 20)
+  line(tx - 2 * tsx, ty + tsyo + 10, tx + 4.5 * tsx, ty + tsyo + 10);
+  line(
+    tx - 2 * tsx,
+    ty + tsyo + tsy * 4 + 20,
+    tx + 4.5 * tsx,
+    ty + tsy * 4 + tsyo + 20
+  );
   line(550, 410, 600, 410);
   line(550, 470, 600, 470);
   line(625, 410, 653, 410);
@@ -168,7 +172,6 @@ function draw() {
     text(rA + "%", square_2_x + square_s * ra, square_y + square_s + 20);
   }
 
-  // Going to need to change these 2 - Bayes update //
   if (rB_given_a > 0 && rB_given_a < 100) {
     text(
       rB_given_a + "%",
@@ -255,13 +258,13 @@ function draw() {
   noStroke();
   fill(255);
   textSize(14);
-  
-  text("Region\nColour", tx - 1.4 * tsx, ty)
-  text("Seg\nA", tx, ty)
-  text("Seg\nB", tx + tsx, ty)
-  text("Indep.\nProb", tx + 2.5 * tsx, ty)
-  text("Dep.\nProb", tx + 4 * tsx, ty)
-  
+
+  text("Region\nColour", tx - 1.4 * tsx, ty);
+  text("Seg\nA", tx, ty);
+  text("Seg\nB", tx + tsx, ty);
+  text("Indep.\nProb", tx + 2.5 * tsx, ty);
+  text("Dep.\nProb", tx + 4 * tsx, ty);
+
   textSize(16);
   text("✅", tx, ty + tsy + tsyo);
   text("✅", tx, ty + 2 * tsy + tsyo);
@@ -271,36 +274,40 @@ function draw() {
   text("❌", tx + tsx, ty + 2 * tsy + tsyo);
   text("✅", tx + tsx, ty + 3 * tsy + tsyo);
   text("❌", tx + tsx, ty + 4 * tsy + tsyo);
-  
+
   textSize(14);
-  text(round(r11 * 100) + "%", tx + 2.5 * tsx, ty + tsy + tsyo)
-  text(round(r10 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 2 + tsyo)
-  text(round(r01 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 3 + tsyo)
-  text(round(r00 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 4 + tsyo)
-  
-  text(round(r11_d * 100) + "%", tx + 4 * tsx, ty + tsy + tsyo)
-  text(round(r10_d * 100) + "%", tx + 4 * tsx, ty + tsy * 2 + tsyo)
-  text(round(r01_d * 100) + "%", tx + 4 * tsx, ty + tsy * 3 + tsyo)
-  text(round(r00_d * 100) + "%", tx + 4 * tsx, ty + tsy * 4 + tsyo)
-  
+  text(round(r11 * 100) + "%", tx + 2.5 * tsx, ty + tsy + tsyo);
+  text(round(r10 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 2 + tsyo);
+  text(round(r01 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 3 + tsyo);
+  text(round(r00 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 4 + tsyo);
+
+  text(round(r11_d * 100) + "%", tx + 4 * tsx, ty + tsy + tsyo);
+  text(round(r10_d * 100) + "%", tx + 4 * tsx, ty + tsy * 2 + tsyo);
+  text(round(r01_d * 100) + "%", tx + 4 * tsx, ty + tsy * 3 + tsyo);
+  text(round(r00_d * 100) + "%", tx + 4 * tsx, ty + tsy * 4 + tsyo);
+
   textAlign(LEFT);
   textSize(12);
-  text("P(B✅|A✅)  =                    =              =   " 
-       + rB_given_a + "%", 460, 415)
-  text("P(B✅|A❌)  =                    =              =   " 
-       + rB_given_no_a + "%", 460, 475)
+  text("P(B✅|A✅)  =                    =              =   ", 460, 415);
+  text("P(B✅|A❌)  =                    =              =   ", 460, 475);
+
+  if (ra > 0) {
+    text(rB_given_a + "%", 675, 415);
+  }
+  if (ra < 1) {
+    text(rB_given_no_a + "%", 675, 475);
+  }
+
   textAlign(CENTER);
-  text("P(✅✅)", 575, 402)
-  text("P(A✅)", 575, 425)
-  text(round(r11_d * 100) + "%", 640, 402)
-  text(rA + "%", 640, 425)
-  text("P(❌✅)", 575, 462)
-  text("P(A❌)", 575, 485)
-  text(round(r01_d * 100) + "%", 640, 462)
-  text((100 - rA) + "%", 640, 485)
-  
-  
-  
+  text("P(✅✅)", 575, 402);
+  text("P(A✅)", 575, 425);
+  text(round(r11_d * 100) + "%", 640, 402);
+  text(rA + "%", 640, 425);
+  text("P(❌✅)", 575, 462);
+  text("P(A❌)", 575, 485);
+  text(round(r01_d * 100) + "%", 640, 462);
+  text(100 - rA + "%", 640, 485);
+
   textSize(14);
   text(rA + "%", sx + 40, sy - 50);
   text(100 - rA + "%", sx + 40, sy + 60);
@@ -312,10 +319,14 @@ function draw() {
   text(rB + "%", sx + 175, sy + 45);
   text(100 - rB + "%", sx + 175, sy + 115);
 
-  text(rB_given_a + "%", sx2 + 175, sy - 105);
-  text(100 - rB_given_a + "%", sx2 + 175, sy - 35);
-  text(rB_given_no_a + "%", sx2 + 175, sy + 45);
-  text(100 - rB_given_no_a + "%", sx2 + 175, sy + 115);
+  if (ra > 0) {
+    text(rB_given_a + "%", sx2 + 175, sy - 105);
+    text(100 - rB_given_a + "%", sx2 + 175, sy - 35);
+  }
+  if (ra < 1) {
+    text(rB_given_no_a + "%", sx2 + 175, sy + 45);
+    text(100 - rB_given_no_a + "%", sx2 + 175, sy + 115);
+  }
 
   text("Segment A", sx + 50, 550);
   text("Segment B", sx + 175, 550);
@@ -356,26 +367,26 @@ function draw() {
   rect(sx2 + 550, sy - 35, ww, wh);
   rect(sx2 + 550, sy + 35, ww, wh);
   rect(sx2 + 550, sy + 115, ww, wh);
-  rect(tx - 1.4 * tsx, ty + tsy + tsyo - 5, ww * 1.5, wh * 1.2)
-  rect(tx - 1.4 * tsx, ty + tsy * 2 + tsyo - 5, ww * 1.5, wh * 1.2)
-  rect(tx - 1.4 * tsx, ty + tsy * 3 + tsyo - 5, ww * 1.5, wh * 1.2)
-  rect(tx - 1.4 * tsx, ty + tsy * 4 + tsyo - 5, ww * 1.5, wh * 1.2)
+  rect(tx - 1.4 * tsx, ty + tsy + tsyo - 5, ww * 1.5, wh * 1.2);
+  rect(tx - 1.4 * tsx, ty + tsy * 2 + tsyo - 5, ww * 1.5, wh * 1.2);
+  rect(tx - 1.4 * tsx, ty + tsy * 3 + tsyo - 5, ww * 1.5, wh * 1.2);
+  rect(tx - 1.4 * tsx, ty + tsy * 4 + tsyo - 5, ww * 1.5, wh * 1.2);
 
   fill("rgba(255, 0, 255, 0.5)");
   rect(sx + 550, sy - 115, ww, wh);
   rect(sx + 550, sy - 35, ww, wh);
   rect(sx2 + 550, sy - 115, ww, wh);
   rect(sx2 + 550, sy - 35, ww, wh);
-  rect(tx - 1.4 * tsx, ty + tsy + tsyo - 5, ww * 1.5, wh * 1.2)
-  rect(tx - 1.4 * tsx, ty + tsy * 2 + tsyo - 5, ww * 1.5, wh * 1.2)
+  rect(tx - 1.4 * tsx, ty + tsy + tsyo - 5, ww * 1.5, wh * 1.2);
+  rect(tx - 1.4 * tsx, ty + tsy * 2 + tsyo - 5, ww * 1.5, wh * 1.2);
 
   fill("rgba(255, 255, 0, 0.5)");
   rect(sx + 550, sy - 115, ww, wh);
   rect(sx + 550, sy + 35, ww, wh);
   rect(sx2 + 550, sy - 115, ww, wh);
   rect(sx2 + 550, sy + 35, ww, wh);
-  rect(tx - 1.4 * tsx, ty + tsy + tsyo - 5, ww * 1.5, wh * 1.2)
-  rect(tx - 1.4 * tsx, ty + tsy * 3 + tsyo - 5, ww * 1.5, wh * 1.2)
+  rect(tx - 1.4 * tsx, ty + tsy + tsyo - 5, ww * 1.5, wh * 1.2);
+  rect(tx - 1.4 * tsx, ty + tsy * 3 + tsyo - 5, ww * 1.5, wh * 1.2);
 
   fill(255);
 

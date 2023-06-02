@@ -73,11 +73,8 @@ function draw() {
   let r01_d = r01 - rmod * dep;
   let r00_d = r00 + rmod * dep;
 
-  let rb_given_a;
-  let rb_given_no_a;
-
-  rb_given_a = r11_d / ra;
-  rb_given_no_a = r01_d / (1 - ra);
+  let rb_given_a = r11_d / ra;
+  let rb_given_no_a = r01_d / (1 - ra);
 
   let rB_given_a = round(rb_given_a * 100);
   let rB_given_no_a = round(rb_given_no_a * 100);

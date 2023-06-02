@@ -95,7 +95,7 @@ function draw() {
   let sy = 700;
   let sx2 = width / 2 + sx;
   let tx = 520;
-  let ty = 200;
+  let ty = 160;
   let tsx = 50;
   let tsy = 40;
   let tsyo = 20;
@@ -113,6 +113,10 @@ function draw() {
   line(tx - 2 * tsx, ty + tsyo + 10, tx + 4.5 * tsx, ty + tsyo + 10)
   line(tx - 2 * tsx, ty + tsyo + tsy * 4 + 20, 
        tx + 4.5 * tsx, ty + tsy * 4 + tsyo + 20)
+  line(550, 410, 600, 410);
+  line(550, 470, 600, 470);
+  line(625, 410, 653, 410);
+  line(625, 470, 653, 470);
 
   fill(255);
   noStroke();
@@ -278,7 +282,24 @@ function draw() {
   text(round(r10_d * 100) + "%", tx + 4 * tsx, ty + tsy * 2 + tsyo)
   text(round(r01_d * 100) + "%", tx + 4 * tsx, ty + tsy * 3 + tsyo)
   text(round(r00_d * 100) + "%", tx + 4 * tsx, ty + tsy * 4 + tsyo)
-
+  
+  textAlign(LEFT);
+  textSize(12);
+  text("P(B✅|A✅)  =                    =              =   " 
+       + rB_given_a + "%", 460, 415)
+  text("P(B✅|A❌)  =                    =              =   " 
+       + rB_given_no_a + "%", 460, 475)
+  textAlign(CENTER);
+  text("P(✅✅)", 575, 402)
+  text("P(A✅)", 575, 425)
+  text(round(r11_d * 100) + "%", 640, 402)
+  text(rA + "%", 640, 425)
+  text("P(❌✅)", 575, 462)
+  text("P(A❌)", 575, 485)
+  text(round(r01_d * 100) + "%", 640, 462)
+  text((100 - rA) + "%", 640, 485)
+  
+  
   
   textSize(14);
   text(rA + "%", sx + 40, sy - 50);

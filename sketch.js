@@ -76,8 +76,8 @@ function draw() {
   let rb_given_a
   let rb_given_no_a
   
-  if (ra == 0 || ra == 1) {rb_given_a = rb} else {rb_given_a = r11_d / ra};
-  if (ra == 0 || ra == 1) {rb_given_no_a = rb} else {rb_given_no_a = r01_d / (1 - ra)};
+  rb_given_a = r11_d / ra;
+  rb_given_no_a = r01_d / (1 - ra);
 
   let rB_given_a = round(rb_given_a * 100);
   let rB_given_no_a = round(rb_given_no_a * 100);

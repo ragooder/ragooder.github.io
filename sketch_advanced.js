@@ -92,7 +92,7 @@ function draw() {
   let sy = 700;
   let sx2 = width / 2 + sx;
   let tx = 520;
-  let ty = 160;
+  let ty = 155;
   let tsx = 50;
   let tsy = 40;
   let tsyo = 20;
@@ -103,6 +103,7 @@ function draw() {
 
   stroke(255);
   strokeWeight(1);
+  strokeCap(ROUND);
   line(0, 125, width, 125);
   line(600, 520, 600, height);
   line(0, 520, width, 520);
@@ -114,10 +115,10 @@ function draw() {
     tx + 4.5 * tsx,
     ty + tsy * 4 + tsyo + 20
   );
-  line(550, 410, 600, 410);
-  line(550, 470, 600, 470);
-  line(625, 410, 653, 410);
-  line(625, 470, 653, 470);
+  line(550, 420, 600, 420);
+  line(550, 480, 600, 480);
+  line(625, 420, 653, 420);
+  line(625, 480, 653, 480);
 
   fill(255);
   noStroke();
@@ -261,6 +262,7 @@ function draw() {
   text("Seg\nB", tx + tsx, ty);
   text("Indep.\nProb", tx + 2.5 * tsx, ty);
   text("Dep.\nProb", tx + 4 * tsx, ty);
+  text("Overall CoS:", tx + 0.5 * tsx, ty + 5 * tsy + tsyo);
 
   textSize(16);
   text("✅", tx, ty + tsy + tsyo);
@@ -277,33 +279,35 @@ function draw() {
   text(round(r10 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 2 + tsyo);
   text(round(r01 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 3 + tsyo);
   text(round(r00 * 100) + "%", tx + 2.5 * tsx, ty + tsy * 4 + tsyo);
+  text(round((1 - r00) * 100) + "%", tx + 2.5 * tsx, ty + tsy * 5 + tsyo);
 
   text(round(r11_d * 100) + "%", tx + 4 * tsx, ty + tsy + tsyo);
   text(round(r10_d * 100) + "%", tx + 4 * tsx, ty + tsy * 2 + tsyo);
   text(round(r01_d * 100) + "%", tx + 4 * tsx, ty + tsy * 3 + tsyo);
   text(round(r00_d * 100) + "%", tx + 4 * tsx, ty + tsy * 4 + tsyo);
+  text(round((1 - r00_d) * 100) + "%", tx + 4 * tsx, ty + tsy * 5 + tsyo);
 
   textAlign(LEFT);
   textSize(12);
-  text("P(B✅|A✅)  =                    =              =   ", 460, 415);
-  text("P(B✅|A❌)  =                    =              =   ", 460, 475);
+  text("P(B✅|A✅)  =                    =              =   ", 460, 425);
+  text("P(B✅|A❌)  =                    =              =   ", 460, 485);
 
   if (ra > 0) {
-    text(rB_given_a + "%", 675, 415);
+    text(rB_given_a + "%", 675, 425);
   }
   if (ra < 1) {
-    text(rB_given_no_a + "%", 675, 475);
+    text(rB_given_no_a + "%", 675, 485);
   }
 
   textAlign(CENTER);
-  text("P(✅✅)", 575, 402);
-  text("P(A✅)", 575, 425);
-  text(round(r11_d * 100) + "%", 640, 402);
-  text(rA + "%", 640, 425);
-  text("P(❌✅)", 575, 462);
-  text("P(A❌)", 575, 485);
-  text(round(r01_d * 100) + "%", 640, 462);
-  text(100 - rA + "%", 640, 485);
+  text("P(✅✅)", 575, 412);
+  text("P(A✅)", 575, 435);
+  text(round(r11_d * 100) + "%", 640, 412);
+  text(rA + "%", 640, 435);
+  text("P(❌✅)", 575, 472);
+  text("P(A❌)", 575, 495);
+  text(round(r01_d * 100) + "%", 640, 472);
+  text(100 - rA + "%", 640, 495);
 
   textSize(14);
   text(rA + "%", sx + 40, sy - 50);
@@ -429,4 +433,75 @@ function draw() {
   text(round((1 - r00_d) * 100) + "%", sx2 + 405, py);
   text(round(risked_vol) + " mmboe", sx + 500, py);
   text(round(risked_vol_d) + " mmboe", sx2 + 500, py);
+
+  stroke(255, 0, 0);
+  strokeCap(SQUARE);
+
+  line(
+    tx - 1.4 * tsx - (ww * 1.5) / 2,
+    ty + tsy * 4 + tsyo - 5 - (wh * 1.2) / 2,
+    tx - 1.4 * tsx + (ww * 1.5) / 2,
+    ty + tsy * 4 + tsyo - 5 + (wh * 1.2) / 2
+  );
+  line(
+    tx - 1.4 * tsx - (ww * 1.5) / 2,
+    ty + tsy * 4 + tsyo - 5 + (wh * 1.2) / 2,
+    tx - 1.4 * tsx + (ww * 1.5) / 2,
+    ty + tsy * 4 + tsyo - 5 - (wh * 1.2) / 2
+  );
+  line(
+    sx + 550 - ww / 2,
+    sy + 115 - wh / 2,
+    sx + 550 + ww / 2,
+    sy + 115 + wh / 2
+  );
+  line(
+    sx + 550 - ww / 2,
+    sy + 115 + wh / 2,
+    sx + 550 + ww / 2,
+    sy + 115 - wh / 2
+  );
+  line(
+    sx2 + 550 - ww / 2,
+    sy + 115 - wh / 2,
+    sx2 + 550 + ww / 2,
+    sy + 115 + wh / 2
+  );
+  line(
+    sx2 + 550 - ww / 2,
+    sy + 115 + wh / 2,
+    sx2 + 550 + ww / 2,
+    sy + 115 - wh / 2
+  );
+
+  strokeWeight(5);
+  if (r00 > 0) {
+    line(
+      square_x + square_s * ra,
+      square_y,
+      square_x + square_s,
+      square_y + square_s * (1 - rb)
+    );
+    line(
+      square_x + square_s * ra,
+      square_y + square_s * (1 - rb),
+      square_x + square_s,
+      square_y
+    );
+  }
+
+  if (r00_d > 0) {
+    line(
+      square_2_x + square_s * ra,
+      square_y,
+      square_2_x + square_s,
+      square_y + square_s * (1 - rb_given_no_a)
+    );
+    line(
+      square_2_x + square_s * ra,
+      square_y + square_s * (1 - rb_given_no_a),
+      square_2_x + square_s,
+      square_y
+    );
+  }
 }

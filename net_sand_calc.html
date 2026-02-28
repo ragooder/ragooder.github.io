@@ -421,7 +421,7 @@
       };
 
       const nSamples = Math.max(1,  Math.floor(readNumber(inputs.nSamples, 50000)));
-      const nBins    = Math.max(10, Math.floor(readNumber(inputs.nBins, 50)));
+      const nBins    = Math.max(1, Math.floor(readNumber(inputs.nBins, 50)));
 
       const msg = validateInputs(gt, ntg);
       if (msg) {
@@ -1043,4 +1043,5 @@
     }
   </script>
 </body>
+
 </html>

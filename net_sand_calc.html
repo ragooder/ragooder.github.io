@@ -472,8 +472,8 @@
       // Input histograms from actual inputs used
       const xCopy  = [...x].sort((a, b) => a - b);
       const yCopy  = [...y].sort((a, b) => a - b);
-      const gtHist = makeHistogram(xCopy, Math.min(36, Math.max(1, xCopy.length)));
-      const ntgHist= makeHistogram(yCopy, Math.min(36, Math.max(1, yCopy.length)));
+      const gtHist = makeHistogram(xCopy, nBins);
+      const ntgHist= makeHistogram(yCopy, nBins);
 
       // Analytical mean for product (approx): E[XY] = μx μy + ρ σx σy
       const mu_product_analytic = mu_gt * mu_ntg + rho * sigma_gt * sigma_ntg;
@@ -1045,3 +1045,4 @@
 </body>
 
 </html>
+

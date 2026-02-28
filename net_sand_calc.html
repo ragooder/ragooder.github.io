@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Net Sand Monte Carlo (Net Sand = Gross Thickness × NTG)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- p5.js (core + DOM) -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.2/lib/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.2/lib/addons/p5.dom.min.js"></script>
+
+  <style>
+    :root {
+      /* Layout & palette */
+      --bg:     #f8fafc;  /* page background */
+      --card:   #ffffff;  /* panel/canvas background */
+      --fg:     #111827;  /* primary text */
+      --muted:  #4b5563;  /* secondary text */
+      --border: #e5e7eb;  /* light border */
+      --blue:   #2563eb;  /* primary button */
+
+      /* Plots */
+      --bar:    #60a5fa;  /* histogram bars */
+      --mean:   #d97706;  /* simulated mean (amber) */
+      --meanA:  #111827;  /* analytical mean (near-black) */
+      --p50:    #4f46e5;  /* indigo */
+      --p90:    #16a34a;  /* green */
+      --p10:    #db2777;  /* rose */
+      --mode:   #ef4444;  /* bright red (mode) */
+    }
+
+    /* Page */
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.35;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 12px auto 20px;
+      padding: 0 12px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      margin: 4px 0 6px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 2px 0 0;
+    }
+
+    .rowTitle {
+      margin-top: 10px;
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: flex-end;
+      margin-top: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    /* Controls */
+    .control {
+      width: 140px;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--fg);
+    }
+
+    .control.units { width: 100px; }
+    .control.dist  { width: 150px; }
+    .control.wide  { min-width: 320px; }
+
+    /* Greyed when disabled (Triangular) */
+    .control.disabled {
+      background: #f3f4f6;
+      color: #9ca3af;
+      border-color: #e5e7eb;
+      cursor: not-allowed;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: var(--blue);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .canvasFrame {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h2>Net Sand Monte Carlo (Net Sand = Gross Thickness × NTG)</h2>
+      <div class="note">
+        Set min / mode / max (λ = PERT shape). Choose distribution (Beta‑PERT or Triangular).
+        Correlate GT &amp; NTG if needed. Click <b>RUN</b> to update.
+      </div>
+
+      <!-- Row 1: Gross Thickness -->
+      <div class="rowTitle">Gross Thickness</div>
+      <div id="row-gt" class="row"></div>
+
+      <!-- Row 2: NTG -->
+      <div class="rowTitle">Net-to-Gross (NTG)</div>
+      <div id="row-ntg" class="row"></div>
+
+      <!-- Row 3: Simulation -->
+      <div class="rowTitle">Simulation</div>
+      <div id="row-sim" class="row"></div>
+
+      <div class="actions">
+        <button id="run">RUN simulation</button>
+        <!-- NEW: Reset defaults button -->
+        <button id="reset">Reset defaults</button>
+        <div id="status" class="note"></div>
+      </div>
+    </div>
+
+    <div class="canvasFrame">
+      <div id="canvas-holder"></div>
+    </div>
+  </div>
+
+  <script>
+    /* =========================
+       App State & Layout
+       ========================= */
+
+    let inputs = {};
+    let runBtn, resetBtn, statusP, unitSelect, corrSelect, gtDistSelect, ntgDistSelect;
+
+    const canvasW = 960;
+    const canvasH = 600;
+    let cnv;
+
+    const layout = {
+      pad: 12,
+      topChartsH: 170,
+      gap: 12,
+      mainH: 350,
+      legendW: 170,          // narrow legend
+      leftPad: 56,
+      rightPad: 12,
+      bottomPad: 50,
+      topPad: 16,
+      smallPaneSideInset: 10,
+      legendRightExtraPad: 10 // extra space from right edge for legend
+    };
+
+    const results = {
+      samples: [],
+      bins: [],
+      mean: NaN,
+      median: NaN,
+      mode: NaN,
+      p10: NaN,
+      p90: NaN,
+      min: NaN,
+      max: NaN,
+
+      // input histograms from actual MC inputs (post-corr)
+      gtHist: null,
+      ntgHist: null,
+
+      units: "m",
+
+      mu_gt: NaN,
+      mu_ntg: NaN,
+      sigma_gt: NaN,
+      sigma_ntg: NaN,
+      mu_product_analytic: NaN,
+
+      rho_target: 0,
+      rho_sample: 0
+    };
+
+    /* =========================
+       p5 lifecycle
+       ========================= */
+
+    function setup() {
+      buildUI();
+      cnv = createCanvas(canvasW, canvasH);
+      cnv.parent("canvas-holder");
+      runSimulation();
+    }
+
+    function draw() {
+      background("#ffffff");
+      drawInputDistributions();
+      drawOutputHistogramWithLegend();
+    }
+
+    /* =========================
+       UI
+       ========================= */
+
+    function buildUI() {
+      // Row 1: GT — distribution leftmost
+      const rowGT = select("#row-gt");
+
+      gtDistSelect = createSelect();
+      gtDistSelect.class("control dist");
+      gtDistSelect.option("Beta‑PERT", "pert");
+      gtDistSelect.option("Triangular", "tri");
+      gtDistSelect.selected("pert");
+      wrapControl(rowGT, "distribution", gtDistSelect);
+
+      // Defaults (GT)
+      inputs.gtMin    = makeNumber(rowGT, "min",  10);
+      inputs.gtMode   = makeNumber(rowGT, "mode", 20);
+      inputs.gtMax    = makeNumber(rowGT, "max",  30);
+      inputs.lambdaGT = makeNumber(rowGT, "λ (shape)", 4);
+
+      unitSelect = createSelect();
+      unitSelect.class("control units");
+      unitSelect.option("m", "m");
+      unitSelect.option("ft", "ft");
+      unitSelect.selected("m");
+      wrapControl(rowGT, "units", unitSelect);
+
+      // Row 2: NTG — distribution leftmost
+      const rowNTG = select("#row-ntg");
+
+      ntgDistSelect = createSelect();
+      ntgDistSelect.class("control dist");
+      ntgDistSelect.option("Beta‑PERT", "pert");
+      ntgDistSelect.option("Triangular", "tri");
+      ntgDistSelect.selected("pert");
+      wrapControl(rowNTG, "distribution", ntgDistSelect);
+
+      // Defaults (NTG)
+      inputs.ntgMin    = makeNumber(rowNTG, "min",  0.2);
+      inputs.ntgMode   = makeNumber(rowNTG, "mode", 0.5);
+      inputs.ntgMax    = makeNumber(rowNTG, "max",  0.8);
+      inputs.lambdaNTG = makeNumber(rowNTG, "λ (shape)", 4);
+
+      // Row 3: Simulation
+      const rowSim = select("#row-sim");
+      inputs.nSamples = makeNumber(rowSim, "samples",        50000);  // default samples
+      inputs.nBins    = makeNumber(rowSim, "histogram bins", 50);
+
+      corrSelect = createSelect();
+      corrSelect.class("control wide");
+      corrSelect.option("Max + (ρ = 1.0)",   "1");
+      corrSelect.option("Strong + (ρ = 0.9)","0.9");
+      corrSelect.option("Medium + (ρ = 0.5)","0.5");
+      corrSelect.option("Independent (ρ = 0)","0");   // default
+      corrSelect.option("Medium − (ρ = -0.5)","-0.5");
+      corrSelect.option("Strong − (ρ = -0.9)","-0.9");
+      corrSelect.option("Max − (ρ = -1.0)",  "-1");
+      corrSelect.selected("0");
+      wrapControl(rowSim, "correlation (ρ)", corrSelect);
+
+      // Actions
+      runBtn  = select("#run");
+      resetBtn = select("#reset");
+      statusP = select("#status");
+
+      runBtn.mousePressed(runSimulation);
+      resetBtn.mousePressed(resetDefaults);   // NEW
+
+      // Re-run on selector changes (number inputs are manual)
+      unitSelect.changed(runSimulation);
+      corrSelect.changed(runSimulation);
+      gtDistSelect.changed(() => { toggleLambdaEnabled(); runSimulation(); });
+      ntgDistSelect.changed(() => { toggleLambdaEnabled(); runSimulation(); });
+
+      toggleLambdaEnabled();
+    }
+
+    // NEW: Reset defaults handler
+    function resetDefaults() {
+      // GT defaults
+      inputs.gtMin.value(String(10));
+      inputs.gtMode.value(String(20));
+      inputs.gtMax.value(String(30));
+      inputs.lambdaGT.value(String(4));
+      gtDistSelect.value('pert');
+
+      // NTG defaults
+      inputs.ntgMin.value(String(0.2));
+      inputs.ntgMode.value(String(0.5));
+      inputs.ntgMax.value(String(0.8));
+      inputs.lambdaNTG.value(String(4));
+      ntgDistSelect.value('pert');
+
+      // Units, correlation, samples, bins
+      unitSelect.value('m');
+      corrSelect.value('0');
+      inputs.nSamples.value(String(50000));
+      inputs.nBins.value(String(50));
+
+      toggleLambdaEnabled();
+      statusP.html('Defaults restored');
+      runSimulation();
+    }
+
+    function toggleLambdaEnabled() {
+      const gtIsPert  = (gtDistSelect.value()  === "pert");
+      const ntgIsPert = (ntgDistSelect.value() === "pert");
+
+      inputs.lambdaGT.elt.disabled = !gtIsPert;
+      inputs.lambdaNTG.elt.disabled = !ntgIsPert;
+
+      if (!gtIsPert) {
+        inputs.lambdaGT.addClass("disabled");
+        inputs.lambdaGT.elt.title = "Not used for Triangular";
+      } else {
+        inputs.lambdaGT.removeClass("disabled");
+        inputs.lambdaGT.elt.title = "";
+      }
+
+      if (!ntgIsPert) {
+        inputs.lambdaNTG.addClass("disabled");
+        inputs.lambdaNTG.elt.title = "Not used for Triangular";
+      } else {
+        inputs.lambdaNTG.removeClass("disabled");
+        inputs.lambdaNTG.elt.title = "";
+      }
+    }
+
+    function wrapControl(parent, labelText, element) {
+      const wrap = createDiv().addClass("field");
+      wrap.parent(parent);
+      const lab = createElement("label", labelText);
+      lab.parent(wrap);
+      element.parent(wrap);
+      return element;
+    }
+
+    function makeNumber(parent, labelText, defaultValue) {
+      const input = createInput(String(defaultValue), "number");
+      input.class("control");
+      return wrapControl(parent, labelText, input);
+    }
+
+    function readNumber(inp, fallback) {
+      const v = parseFloat(inp.value());
+      return isFinite(v) ? v : fallback;
+    }
+
+    /* =========================
+       Simulation
+       ========================= */
+
+    function runSimulation() {
+      statusP.html("Running…");
+
+      const units = unitSelect.value();
+      const rho   = parseFloat(corrSelect.value() || "0");
+
+      const gt = {
+        min:    readNumber(inputs.gtMin,  10),
+        mode:   readNumber(inputs.gtMode, 20),
+        max:    readNumber(inputs.gtMax,  30),
+        lambda: readNumber(inputs.lambdaGT, 4),
+        dist:   gtDistSelect.value()
+      };
+
+      const ntg = {
+        min:    readNumber(inputs.ntgMin,  0.2),
+        mode:   readNumber(inputs.ntgMode, 0.5),
+        max:    readNumber(inputs.ntgMax,  0.8),
+        lambda: readNumber(inputs.lambdaNTG, 4),
+        dist:   ntgDistSelect.value()
+      };
+
+      const nSamples = Math.max(1,  Math.floor(readNumber(inputs.nSamples, 50000)));
+      const nBins    = Math.max(10, Math.floor(readNumber(inputs.nBins, 50)));
+
+      const msg = validateInputs(gt, ntg);
+      if (msg) {
+        statusP.html('<span style="color:#b91c1c">Input error: ' + msg + "</span>");
+        Object.assign(results, { samples: [], bins: [], gtHist: null, ntgHist: null, units, rho_target: rho, rho_sample: 0 });
+        return;
+      }
+
+      // Analytics (by marginals)
+      const mu_gt    = (gt.dist === "pert") ? pertMean(gt.min, gt.mode, gt.max, gt.lambda) : triMean(gt.min, gt.mode, gt.max);
+      const mu_ntg   = (ntg.dist === "pert") ? pertMean(ntg.min, ntg.mode, ntg.max, ntg.lambda) : triMean(ntg.min, ntg.mode, ntg.max);
+      const sigma_gt = (gt.dist === "pert") ? pertStd (gt.min, gt.mode, gt.max, gt.lambda) : triStd(gt.min, gt.mode, gt.max);
+      const sigma_ntg= (ntg.dist === "pert") ? pertStd (ntg.min, ntg.mode, ntg.max, ntg.lambda) : triStd(ntg.min, ntg.mode, ntg.max);
+
+      // Actual MC inputs
+      let x = new Array(nSamples);
+      let y = new Array(nSamples);
+      for (let i = 0; i < nSamples; i++) {
+        x[i] = (gt.dist  === "pert") ? samplePERT(gt.min,  gt.mode,  gt.max,  gt.lambda) : sampleTriangular(gt.min,  gt.mode,  gt.max);
+        y[i] = (ntg.dist === "pert") ? samplePERT(ntg.min, ntg.mode, ntg.max, ntg.lambda) : sampleTriangular(ntg.min, ntg.mode, ntg.max);
+      }
+
+      // Impose correlation (original rank-based approach)
+      if (Math.abs(rho) > 1e-12) {
+        const { xCorr, yCorr } = imposeCorrelation(x, y, rho);
+        x = xCorr;
+        y = yCorr;
+      }
+      const rhoSample = pearsonCorr(x, y);
+
+      // Product (Net Sand)
+      const samples = new Array(nSamples);
+      for (let i = 0; i < nSamples; i++) samples[i] = x[i] * y[i];
+      samples.sort((a, b) => a - b);
+
+      // Output stats
+      const mean   = samples.reduce((s, v) => s + v, 0) / samples.length;
+      const median = quantileSorted(samples, 0.50);
+      const p90    = quantileSorted(samples, 0.10);
+      const p10    = quantileSorted(samples, 0.90);
+      const minV   = samples[0];
+      const maxV   = samples[samples.length - 1];
+
+      // Histograms
+      const outHist = makeHistogram(samples, nBins);
+      const modeVal = outHist.modeCenter;
+
+      // Input histograms from actual inputs used
+      const xCopy  = [...x].sort((a, b) => a - b);
+      const yCopy  = [...y].sort((a, b) => a - b);
+      const gtHist = makeHistogram(xCopy, Math.min(36, Math.max(1, xCopy.length)));
+      const ntgHist= makeHistogram(yCopy, Math.min(36, Math.max(1, yCopy.length)));
+
+      // Analytical mean for product (approx): E[XY] = μx μy + ρ σx σy
+      const mu_product_analytic = mu_gt * mu_ntg + rho * sigma_gt * sigma_ntg;
+
+      // Store
+      Object.assign(results, {
+        samples,
+        bins: outHist,
+        mean, median, p90, p10,
+        min: minV, max: maxV, mode: modeVal,
+        gtHist, ntgHist,
+        units,
+        mu_gt, mu_ntg,
+        sigma_gt, sigma_ntg,
+        mu_product_analytic,
+        rho_target: rho,
+        rho_sample: rhoSample
+      });
+
+      statusP.html(`Done ✔︎  |  ρ target: ${rho.toFixed(2)}, ρ sample: ${isFinite(rhoSample) ? rhoSample.toFixed(2) : "—"}`);
+    }
+
+    function validateInputs(gt, ntg) {
+      const okOrder  = (o) => (o.min <= o.mode && o.mode <= o.max);
+      const okLambda = (o) => (o.dist !== "pert" || (isFinite(o.lambda) && o.lambda > 0));
+      const diff     = (o) => (o.min !== o.max);
+
+      if (!okOrder(gt))  return "Gross Thickness: require min ≤ mode ≤ max";
+      if (!okOrder(ntg)) return "NTG: require min ≤ mode ≤ max";
+      if (!okLambda(gt)) return "Gross Thickness: λ (shape) must be > 0 for Beta‑PERT";
+      if (!okLambda(ntg)) return "NTG: λ (shape) must be > 0 for Beta‑PERT";
+      if (!diff(gt))     return "Gross Thickness: min and max must differ";
+      if (!diff(ntg))    return "NTG: min and max must differ";
+      return null;
+    }
+
+    /* =========================
+       Analytics & Sampling
+       ========================= */
+
+    function pertAlphaBeta(min, mode, max, lambda = 4) {
+      const range = max - min;
+      const t = (mode - min) / range;
+      return { alpha: 1 + lambda * t, beta: 1 + lambda * (1 - t), range };
+    }
+
+    function pertMean(min, mode, max, lambda = 4) {
+      const { alpha, beta, range } = pertAlphaBeta(min, mode, max, lambda);
+      return min + range * (alpha / (alpha + beta));
+    }
+
+    function pertStd(min, mode, max, lambda = 4) {
+      const { alpha, beta, range } = pertAlphaBeta(min, mode, max, lambda);
+      const varBeta = (alpha * beta) / ((alpha + beta) ** 2 * (alpha + beta + 1));
+      return Math.sqrt(varBeta) * range;
+    }
+
+    function samplePERT(min, mode, max, lambda = 4) {
+      const { alpha, beta, range } = pertAlphaBeta(min, mode, max, lambda);
+      const u = sampleBeta(alpha, beta);
+      return min + range * u;
+    }
+
+    function triMean(a, c, b) {
+      return (a + c + b) / 3;
+    }
+
+    function triVar(a, c, b) {
+      return (a*a + b*b + c*c - a*b - a*c - b*c) / 18;
+    }
+
+    function triStd(a, c, b) {
+      return Math.sqrt(Math.max(0, triVar(a, c, b)));
+    }
+
+    function sampleTriangular(a, c, b) {
+      const u  = Math.random();
+      const Fc = (c - a) / (b - a);
+      if (u < Fc) return a + Math.sqrt(u * (b - a) * (c - a));
+      return b - Math.sqrt((1 - u) * (b - a) * (b - c));
+    }
+
+    function sampleBeta(alpha, beta) {
+      const x = sampleGamma(alpha, 1);
+      const y = sampleGamma(beta, 1);
+      return x / (x + y);
+    }
+
+    function sampleGamma(k, theta = 1) {
+      if (k < 1) {
+        const u = Math.random();
+        return sampleGamma(k + 1, 1) * Math.pow(u, 1 / k) * theta;
+      }
+      const d = k - 1 / 3;
+      const c = 1 / Math.sqrt(9 * d);
+      while (true) {
+        const x = randn();
+        let v = 1 + c * x;
+        if (v <= 0) continue;
+        v = v * v * v;
+        const u = Math.random();
+        if (u < 1 - 0.0331 * (x ** 4)) return d * v * theta;
+        if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * theta;
+      }
+    }
+
+    function randn() {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
+    /* =========================
+       Correlation (rank‑preserving, original)
+       ========================= */
+
+    function imposeCorrelation(x, y, rho) {
+      const n = x.length;
+
+      // 1) correlated normals
+      const z1 = new Array(n);
+      const z2 = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const a = randn();
+        const b = randn();
+        z1[i] = a;
+        z2[i] = rho * a + Math.sqrt(Math.max(0, 1 - rho * rho)) * b;
+      }
+
+      // 2) ranks
+      const orderZ1 = argsort(z1);
+      const orderZ2 = argsort(z2);
+
+      // 3) sorted marginals
+      const xSorted = [...x].sort((A, B) => A - B);
+      const ySorted = [...y].sort((A, B) => A - B);
+
+      // 4) apply ranks
+      const xCorr = new Array(n);
+      const yCorr = new Array(n);
+      for (let i = 0; i < n; i++) {
+        xCorr[orderZ1[i]] = xSorted[i];
+        yCorr[orderZ2[i]] = ySorted[i];
+      }
+      return { xCorr, yCorr };
+    }
+
+    function argsort(arr) {
+      return arr.map((v, i) => i).sort((i, j) => arr[i] - arr[j]);
+    }
+
+    function pearsonCorr(a, b) {
+      const n = a.length;
+      if (n !== b.length || n < 2) return NaN;
+
+      let sumA = 0, sumB = 0;
+      for (let i = 0; i < n; i++) { sumA += a[i]; sumB += b[i]; }
+
+      const meanA = sumA / n;
+      const meanB = sumB / n;
+
+      let sXY = 0, sXX = 0, sYY = 0;
+      for (let i = 0; i < n; i++) {
+        const da = a[i] - meanA;
+        const db = b[i] - meanB;
+        sXY += da * db;
+        sXX += da * da;
+        sYY += db * db;
+      }
+      return sXY / Math.sqrt(sXX * sYY);
+    }
+
+    /* =========================
+       Histogram, Quantiles, Ticks
+       ========================= */
+
+    function makeHistogram(sortedSamples, nBins) {
+      const n = sortedSamples.length;
+      if (n === 0) {
+        return { counts: [], min: 0, max: 0, binWidth: 1, n: 0, modeCenter: 0, maxCount: 0 };
+      }
+      const minV  = sortedSamples[0];
+      const maxV  = sortedSamples[n - 1];
+      const width = (maxV - minV) / Math.max(1, nBins) || 1;
+
+      const counts = new Array(Math.max(1, nBins)).fill(0);
+      for (let i = 0; i < n; i++) {
+        let idx = Math.floor((sortedSamples[i] - minV) / width);
+        if (idx >= counts.length) idx = counts.length - 1;
+        counts[idx]++;
+      }
+
+      // mode bin center
+      let maxC = -1, idxMode = 0;
+      for (let i = 0; i < counts.length; i++) {
+        if (counts[i] > maxC) { maxC = counts[i]; idxMode = i; }
+      }
+      const modeCenter = minV + (idxMode + 0.5) * width;
+
+      return {
+        counts,
+        min: minV,
+        max: maxV,
+        binWidth: width,
+        n,
+        modeCenter,
+        maxCount: Math.max(...counts)
+      };
+    }
+
+    function quantileSorted(sortedArr, q) {
+      const n = sortedArr.length;
+      if (n === 0) return NaN;
+      const pos  = (n - 1) * q;
+      const i    = Math.floor(pos);
+      const frac = pos - i;
+      if (i + 1 < n) return sortedArr[i] * (1 - frac) + sortedArr[i + 1] * frac;
+      return sortedArr[i];
+    }
+
+    function niceNum(range, round) {
+      const exponent = Math.floor(Math.log10(range));
+      const fraction = range / Math.pow(10, exponent);
+      let niceFraction;
+
+      if (round) {
+        if      (fraction < 1.5) niceFraction = 1;
+        else if (fraction < 3)   niceFraction = 2;
+        else if (fraction < 7)   niceFraction = 5;
+        else                     niceFraction = 10;
+      } else {
+        if      (fraction <= 1)  niceFraction = 1;
+        else if (fraction <= 2)  niceFraction = 2;
+        else if (fraction <= 5)  niceFraction = 5;
+        else                     niceFraction = 10;
+      }
+      return niceFraction * Math.pow(10, exponent);
+    }
+
+    function niceTicks(min, max, tickCount = 6) {
+      if (min === max) {
+        const eps = Math.abs(min) || 1;
+        min -= eps * 0.5;
+        max += eps * 0.5;
+      }
+      const range   = niceNum(max - min, false);
+      const step    = niceNum(range / (tickCount - 1), true);
+      const niceMin = Math.floor(min / step) * step;
+      const niceMax = Math.ceil(max / step) * step;
+
+      const ticks = [];
+      for (let x = niceMin; x <= niceMax + 1e-12; x += step) {
+        ticks.push(Math.abs(x) < 1e-12 ? 0 : x);
+      }
+      return { ticks, niceMin, niceMax, step };
+    }
+
+    /* =========================
+       Drawing
+       ========================= */
+
+    function drawInputDistributions() {
+      const pad = layout.pad;
+      const w   = width - 2 * pad;
+      const h   = layout.topChartsH;
+
+      // Title
+      noStroke();
+      fill("#111827");
+      textAlign(LEFT, TOP);
+      textSize(14);
+      text("Input Distributions (Monte Carlo histograms)", pad, pad);
+
+      const chartY = pad + 20;
+      const chartH = h - 26;
+
+      // Slightly narrower panes with side insets
+      const inset      = layout.smallPaneSideInset;
+      const totalPaneW = (w - layout.gap) / 2;
+      const paneW      = totalPaneW - inset * 2;
+
+      // GT: 0 dp ticks (title includes [Mean: ...] with units, 1 dp)
+      drawSmallHist(
+        results.gtHist,
+        pad + inset, chartY, paneW, chartH,
+        "Gross Thickness",
+        results.units,
+        results.mu_gt,
+        0
+      );
+
+      // NTG: 1 dp ticks (title includes [Mean: ...] with 2 dp)
+      drawSmallHist(
+        results.ntgHist,
+        pad + totalPaneW + layout.gap + inset, chartY, paneW, chartH,
+        "Net-to-Gross (NTG)",
+        null,
+        results.mu_ntg,
+        1
+      );
+    }
+
+    function drawSmallHist(hist, x0, y0, w, h, title, unitsOrNull, analyticMeanVal, tickDP) {
+      push();
+      translate(x0, y0);
+
+      // Frame
+      noFill();
+      stroke("#e5e7eb");
+      rect(0, 0, w, h, 8);
+
+      // Title with [Mean: ...] appended
+      noStroke();
+      fill("#111827");
+      textSize(13);
+      textAlign(LEFT, TOP);
+      const meanPart = isFinite(analyticMeanVal)
+        ? (unitsOrNull
+            ? ` [Mean: ${format1dp(analyticMeanVal)} ${unitsOrNull}]` // GT (units) → 1 dp
+            : ` [Mean: ${analyticMeanVal.toFixed(2)}]`)               // NTG (no units) → 2 dp
+        : "";
+      text(`${title}${meanPart}`, 8, 6);
+
+      if (!hist || !hist.counts || hist.counts.length === 0) {
+        pop();
+        return;
+      }
+
+      const leftPad   = 44;
+      const rightPad  = 12;
+      const topPad    = 26;
+      const bottomPad = 34;
+      const plotW     = w - leftPad - rightPad;
+      const plotH     = h - topPad - bottomPad;
+
+      // Axes
+      stroke("#9ca3af");
+      strokeWeight(1);
+      line(leftPad, topPad, leftPad, topPad + plotH);
+      line(leftPad, topPad + plotH, leftPad + plotW, topPad + plotH);
+
+      // X scale (nice ticks)
+      const { ticks, niceMin, niceMax } = niceTicks(hist.min, hist.max, 5);
+      const xScale = (v) => leftPad + ((v - niceMin) / (niceMax - niceMin)) * plotW;
+
+      // Bars (actual MC inputs)
+      noStroke();
+      fill("rgba(37, 99, 235, 0.25)");
+      for (let i = 0; i < hist.counts.length; i++) {
+        const binStart = hist.min + i * hist.binWidth;
+        const binEnd   = binStart + hist.binWidth;
+        const xL = xScale(binStart);
+        const xR = xScale(binEnd);
+        if (xR <= leftPad || xL >= leftPad + plotW) continue;
+        const c  = hist.counts[i];
+        const bh = (c / hist.maxCount) * plotH;
+        rect(xL, topPad + plotH - bh, Math.max(1, (xR - xL) - 1), bh);
+      }
+
+      // Mean line
+      if (isFinite(analyticMeanVal)) {
+        const xm = xScale(analyticMeanVal);
+        stroke(getColor("meanA"));
+        strokeWeight(2);
+        line(xm, topPad, xm, topPad + plotH);
+      }
+
+      // X ticks
+      noStroke();
+      fill("#4b5563");
+      textSize(11);
+      textAlign(CENTER, TOP);
+      ticks.forEach(t => {
+        const x = xScale(t);
+        stroke("#e5e7eb");
+        line(x, topPad + plotH, x, topPad + plotH + 4);
+        noStroke();
+        text(formatTick(t, tickDP), x, topPad + plotH + 6);
+      });
+
+      // X-axis label
+      noStroke();
+      fill("#111827");
+      textSize(12);
+      textAlign(CENTER, TOP);
+      const axisLabel = unitsOrNull ? `${title} (${unitsOrNull})` : `${title}`;
+      text(axisLabel, leftPad + plotW / 2, topPad + plotH + 22);
+
+      pop();
+    }
+
+    function drawOutputHistogramWithLegend() {
+      const pad    = layout.pad;
+      const y0     = layout.topChartsH + layout.gap + pad;
+      const totalH = layout.mainH;
+      const totalW = width - 2 * pad;
+
+      // Add extra right padding by reducing available legend width and shifting it slightly left
+      const legendW = layout.legendW;
+      const extraRight = layout.legendRightExtraPad;
+      const plotW   = totalW - legendW - layout.gap - extraRight;
+      const plotH   = totalH - layout.topPad - layout.bottomPad;
+
+      push();
+      translate(pad, y0);
+
+      // Title: remove (m) and append [Mean: ...] WITH UNITS
+      noStroke();
+      fill("#111827");
+      textAlign(LEFT, TOP);
+      textSize(14);
+      const outMeanPart = isFinite(results.mean) ? ` [Mean: ${format1dp(results.mean)} ${results.units}]` : "";
+      text(`Output Distribution: Net Sand${outMeanPart}`, 0, 0);
+
+      const xPlot0 = layout.leftPad;
+      const yPlot0 = layout.topPad + 18;
+
+      // Axes
+      stroke("#9ca3af");
+      strokeWeight(1);
+      line(xPlot0, yPlot0, xPlot0, yPlot0 + plotH);
+      line(xPlot0, yPlot0 + plotH, xPlot0 + plotW, yPlot0 + plotH);
+
+      // Plot
+      if (results.bins && results.bins.counts && results.bins.counts.length) {
+        const hist   = results.bins;
+        const { ticks, niceMin, niceMax } = niceTicks(hist.min, hist.max, 6);
+        const xScale = (v) => xPlot0 + ((v - niceMin) / (niceMax - niceMin)) * plotW;
+
+        // Bars
+        noStroke();
+        fill(getComputedStyle(document.documentElement).getPropertyValue("--bar") || "#60a5fa");
+        for (let i = 0; i < hist.counts.length; i++) {
+          const binStart = hist.min + i * hist.binWidth;
+          const binEnd   = binStart + hist.binWidth;
+          const xL = xScale(binStart);
+          const xR = xScale(binEnd);
+          if (xR <= xPlot0 || xL >= xPlot0 + plotW) continue;
+          const c  = hist.counts[i];
+          const bh = (c / hist.maxCount) * plotH;
+          rect(xL, yPlot0 + plotH - bh, Math.max(1, (xR - xL) - 2), bh, 3);
+        }
+
+        // Reference lines
+        drawVLine(xScale(results.mu_product_analytic), yPlot0, plotH, getColor("meanA")); // analytical mean
+        drawVLine(xScale(results.mean),                yPlot0, plotH, getColor("mean"));  // simulated mean
+        drawVLine(xScale(results.mode),                yPlot0, plotH, getColor("mode"));  // mode (red)
+        drawVLine(xScale(results.p90),                 yPlot0, plotH, getColor("p90"));
+        drawVLine(xScale(results.median),              yPlot0, plotH, getColor("p50"));
+        drawVLine(xScale(results.p10),                 yPlot0, plotH, getColor("p10"));
+
+        // X ticks (Net Sand: 0 dp)
+        noStroke();
+        fill("#4b5563");
+        textSize(12);
+        textAlign(CENTER, TOP);
+        ticks.forEach(t => {
+          const x = xScale(t);
+          stroke("#e5e7eb");
+          line(x, yPlot0 + plotH, x, yPlot0 + plotH + 5);
+          noStroke();
+          text(formatTick(t, 0), x, yPlot0 + plotH + 7);
+        });
+
+        // X label (kept unchanged with units)
+        noStroke();
+        fill("#111827");
+        textSize(12);
+        textAlign(CENTER, TOP);
+        text(`Net Sand (${results.units})`, xPlot0 + plotW / 2, yPlot0 + plotH + 26);
+      }
+
+      // Legend (top-right, with extra right padding)
+      const legendX = xPlot0 + plotW + 4;               // slightly left of the right edge
+      const legendY = yPlot0;
+      const legendInnerW = legendW - 8;                 // inner width as before
+      drawLegend(legendX, legendY, legendInnerW);
+
+      pop();
+    }
+
+    function drawVLine(x, yTop, h, color) {
+      stroke(color);
+      strokeWeight(2);
+      line(x, yTop, x, yTop + h);
+    }
+
+    function getColor(kind) {
+      switch (kind) {
+        case "mean":  return getComputedStyle(document.documentElement).getPropertyValue("--mean")  || "#d97706";
+        case "meanA": return getComputedStyle(document.documentElement).getPropertyValue("--meanA") || "#111827";
+        case "p50":   return "#4f46e5";
+        case "p90":   return "#16a34a";
+        case "p10":   return "#db2777";
+        case "mode":  return getComputedStyle(document.documentElement).getPropertyValue("--mode")  || "#ef4444";
+        default:      return "#111827";
+      }
+    }
+
+    function drawLegend(x, y, w) {
+      const items = [
+        { label: "Analytical mean", value: results.mu_product_analytic, color: getColor("meanA") },
+        { label: "Simulated mean",  value: results.mean,                color: getColor("mean")  },
+        { label: "Mode (empirical)",value: results.mode,                color: getColor("mode")  },
+        { label: "P90",             value: results.p90,                 color: getColor("p90")   },
+        { label: "P50 (median)",    value: results.median,              color: getColor("p50")   },
+        { label: "P10",             value: results.p10,                 color: getColor("p10")   }
+      ];
+
+      const headerH = 20;
+      const itemH   = 30;
+      const pad     = 8;
+      const height  = pad + headerH + items.length * itemH + pad + 4;
+
+      push();
+      translate(x, y);
+
+      // Clamp a little further from the right edge: subtract an extra padding
+      const maxAllowedX = width - layout.pad - w - layout.legendRightExtraPad;
+      if (x > maxAllowedX) translate(maxAllowedX - x, 0);
+
+      // Card
+      noFill();
+      stroke("#e5e7eb");
+      rect(0, 0, w, height, 8);
+
+      // Title
+      noStroke();
+      fill("#111827");
+      textSize(13);
+      textAlign(LEFT, TOP);
+      text("Statistics", 10, 6);
+
+      // Items (values 1 dp)
+      let y0 = 6 + headerH;
+      textSize(11.5);
+      for (const it of items) {
+        noStroke();
+        fill(it.color);
+        rect(12, y0 + 4, 10, 10, 2.5);
+
+        fill("#111827");
+        text(it.label, 28, y0 - 1);
+
+        fill("#4b5563");
+        text(`${format1dp(it.value)} ${results.units}`, 28, y0 + 12);
+
+        y0 += itemH;
+      }
+
+      pop();
+    }
+
+    /* =========================
+       Formatting helpers
+       ========================= */
+
+    function format1dp(x) {
+      if (!isFinite(x)) return "—";
+      return Number(x).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+
+    function formatTick(x, dp = 0) {
+      if (!isFinite(x)) return "—";
+      return Number(x).toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    }
+  </script>
+</body>
+</html>

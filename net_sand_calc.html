@@ -114,6 +114,12 @@
       cursor: not-allowed;
     }
 
+    /* NEW: invalid field highlight */
+    .control.invalid {
+      border-color: #b91c1c !important; /* red-700 */
+      box-shadow: 0 0 0 1px #b91c1c inset;
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -192,7 +198,7 @@
       topChartsH: 170,
       gap: 12,
       mainH: 350,
-      legendW: 170,          // narrow legend
+      legendW: 150,          // reduced legend width (as per prior change)
       leftPad: 56,
       rightPad: 12,
       bottomPad: 50,
@@ -296,13 +302,13 @@
 
       corrSelect = createSelect();
       corrSelect.class("control wide");
-      corrSelect.option("Max + (ρ = 1.0)",   "1");
-      corrSelect.option("Strong + (ρ = 0.9)","0.9");
-      corrSelect.option("Medium + (ρ = 0.5)","0.5");
+      corrSelect.option("Max Positive (ρ = 1.0)",   "1");
+      corrSelect.option("High Positive (ρ = 0.9)","0.9");
+      corrSelect.option("Medium Positive (ρ = 0.5)","0.5");
       corrSelect.option("Independent (ρ = 0)","0");   // default
-      corrSelect.option("Medium − (ρ = -0.5)","-0.5");
-      corrSelect.option("Strong − (ρ = -0.9)","-0.9");
-      corrSelect.option("Max − (ρ = -1.0)",  "-1");
+      corrSelect.option("Medium Negative (ρ = -0.5)","-0.5");
+      corrSelect.option("High Negative (ρ = -0.9)","-0.9");
+      corrSelect.option("Max Negative (ρ = -1.0)",  "-1");
       corrSelect.selected("0");
       wrapControl(rowSim, "correlation (ρ)", corrSelect);
 
@@ -496,17 +502,58 @@
       statusP.html(`Done ✔︎  |  ρ target: ${rho.toFixed(2)}, ρ sample: ${isFinite(rhoSample) ? rhoSample.toFixed(2) : "—"}`);
     }
 
-    function validateInputs(gt, ntg) {
-      const okOrder  = (o) => (o.min <= o.mode && o.mode <= o.max);
-      const okLambda = (o) => (o.dist !== "pert" || (isFinite(o.lambda) && o.lambda > 0));
-      const diff     = (o) => (o.min !== o.max);
+    /* =========================
+       Validation (with visual flags)
+       ========================= */
 
-      if (!okOrder(gt))  return "Gross Thickness: require min ≤ mode ≤ max";
-      if (!okOrder(ntg)) return "NTG: require min ≤ mode ≤ max";
-      if (!okLambda(gt)) return "Gross Thickness: λ (shape) must be > 0 for Beta‑PERT";
-      if (!okLambda(ntg)) return "NTG: λ (shape) must be > 0 for Beta‑PERT";
-      if (!diff(gt))     return "Gross Thickness: min and max must differ";
-      if (!diff(ntg))    return "NTG: min and max must differ";
+    function clearInvalid() {
+      // Remove .invalid from all controls we manage
+      [
+        inputs.gtMin, inputs.gtMode, inputs.gtMax, inputs.lambdaGT,
+        inputs.ntgMin, inputs.ntgMode, inputs.ntgMax, inputs.lambdaNTG
+      ].forEach(inp => { if (inp && inp.removeClass) inp.removeClass("invalid"); });
+    }
+
+    function markInvalid(...inps) {
+      inps.forEach(inp => { if (inp && inp.addClass) inp.addClass("invalid"); });
+    }
+
+    function validateInputs(gt, ntg) {
+      clearInvalid();
+
+      // Bounds helpers
+      const nonNeg = (v) => isFinite(v) && v >= 0;
+      const in01   = (v) => isFinite(v) && v >= 0 && v <= 1;
+
+      // GT >= 0
+      const badGT = [];
+      if (!nonNeg(gt.min))  badGT.push(inputs.gtMin);
+      if (!nonNeg(gt.mode)) badGT.push(inputs.gtMode);
+      if (!nonNeg(gt.max))  badGT.push(inputs.gtMax);
+      if (badGT.length) { markInvalid(...badGT); return "Gross Thickness: values must be ≥ 0"; }
+
+      // NTG in [0,1]
+      const badNTG = [];
+      if (!in01(ntg.min))  badNTG.push(inputs.ntgMin);
+      if (!in01(ntg.mode)) badNTG.push(inputs.ntgMode);
+      if (!in01(ntg.max))  badNTG.push(inputs.ntgMax);
+      if (badNTG.length) { markInvalid(...badNTG); return "NTG: values must be between 0 and 1 (inclusive)"; }
+
+      // Logical order: min ≤ mode ≤ max
+      const okOrder  = (o) => (o.min <= o.mode && o.mode <= o.max);
+      if (!okOrder(gt))  { markInvalid(inputs.gtMin, inputs.gtMode, inputs.gtMax); return "Gross Thickness: require min ≤ mode ≤ max"; }
+      if (!okOrder(ntg)) { markInvalid(inputs.ntgMin, inputs.ntgMode, inputs.ntgMax); return "NTG: require min ≤ mode ≤ max"; }
+
+      // Lambda > 0 for PERT
+      const okLambda = (o) => (o.dist !== "pert" || (isFinite(o.lambda) && o.lambda > 0));
+      if (!okLambda(gt)) { markInvalid(inputs.lambdaGT); return "Gross Thickness: λ (shape) must be > 0 for Beta‑PERT"; }
+      if (!okLambda(ntg)) { markInvalid(inputs.lambdaNTG); return "NTG: λ (shape) must be > 0 for Beta‑PERT"; }
+
+      // min != max
+      const diff = (o) => (o.min !== o.max);
+      if (!diff(gt))  { markInvalid(inputs.gtMin, inputs.gtMax); return "Gross Thickness: min and max must differ"; }
+      if (!diff(ntg)) { markInvalid(inputs.ntgMin, inputs.ntgMax); return "NTG: min and max must differ"; }
+
       return null;
     }
 
@@ -872,25 +919,29 @@
       const totalH = layout.mainH;
       const totalW = width - 2 * pad;
 
-      // Add extra right padding by reducing available legend width and shifting it slightly left
-      const legendW = layout.legendW;
-      const extraRight = layout.legendRightExtraPad;
-      const plotW   = totalW - legendW - layout.gap - extraRight;
+      // Legend aligned to right edge of NTG small chart, with gap
+      const insetRight = layout.smallPaneSideInset;
+      const legendW = layout.legendW;    // reduced legend width
+      const desiredGap = 8;              // gap between plot and legend
+
+      const xPlot0 = layout.leftPad;
+      const yPlot0 = layout.topPad + 18;
+      const legendRightEdge = width - pad - insetRight;
+      const legendX = legendRightEdge - legendW; // align legend's right edge
+      const plotRightEdge = legendX - desiredGap;
+      const plotW   = plotRightEdge - xPlot0;    // ensures no overlap
       const plotH   = totalH - layout.topPad - layout.bottomPad;
 
       push();
       translate(pad, y0);
 
-      // Title: remove (m) and append [Mean: ...] WITH UNITS
+      // Title
       noStroke();
       fill("#111827");
       textAlign(LEFT, TOP);
       textSize(14);
       const outMeanPart = isFinite(results.mean) ? ` [Mean: ${format1dp(results.mean)} ${results.units}]` : "";
       text(`Output Distribution: Net Sand${outMeanPart}`, 0, 0);
-
-      const xPlot0 = layout.leftPad;
-      const yPlot0 = layout.topPad + 18;
 
       // Axes
       stroke("#9ca3af");
@@ -939,7 +990,7 @@
           text(formatTick(t, 0), x, yPlot0 + plotH + 7);
         });
 
-        // X label (kept unchanged with units)
+        // X label
         noStroke();
         fill("#111827");
         textSize(12);
@@ -947,11 +998,10 @@
         text(`Net Sand (${results.units})`, xPlot0 + plotW / 2, yPlot0 + plotH + 26);
       }
 
-      // Legend (top-right, with extra right padding)
-      const legendX = xPlot0 + plotW + 4;               // slightly left of the right edge
+      // Legend (aligned; no overlap)
       const legendY = yPlot0;
-      const legendInnerW = legendW - 8;                 // inner width as before
-      drawLegend(legendX, legendY, legendInnerW);
+      const legendInnerW = legendW - 8;
+      drawLegend(legendX - pad, legendY, legendInnerW); // adjust for translate(pad, y0)
 
       pop();
     }
@@ -987,14 +1037,16 @@
       const headerH = 20;
       const itemH   = 30;
       const pad     = 8;
-      const height  = pad + headerH + items.length * itemH + pad + 4;
+
+      // Correlation block: only show sample correlation (unitless)
+      const corrHeaderH = 18;
+      const corrLineH   = 18;
+      const corrBlockH  = corrHeaderH + 1 * corrLineH + 4;
+
+      const height  = pad + headerH + items.length * itemH + pad + corrBlockH + 4;
 
       push();
       translate(x, y);
-
-      // Clamp a little further from the right edge: subtract an extra padding
-      const maxAllowedX = width - layout.pad - w - layout.legendRightExtraPad;
-      if (x > maxAllowedX) translate(maxAllowedX - x, 0);
 
       // Card
       noFill();
@@ -1025,6 +1077,23 @@
         y0 += itemH;
       }
 
+      // Correlation section (ONLY sample correlation)
+      // Divider
+      stroke("#e5e7eb");
+      line(10, y0 + 4, w - 10, y0 + 4);
+
+      // Header
+      noStroke();
+      fill("#111827");
+      textSize(12);
+      text("Correlation", 10, y0 + 8);
+
+      // ρ sample
+      fill("#4b5563");
+      textSize(11.5);
+      const rhoS = isFinite(results.rho_sample) ? results.rho_sample.toFixed(2) : "—";
+      text(`ρ sample: ${rhoS}`, 10, y0 + 8 + corrHeaderH);
+
       pop();
     }
 
@@ -1043,6 +1112,4 @@
     }
   </script>
 </body>
-
 </html>
-

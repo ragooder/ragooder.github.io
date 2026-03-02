@@ -1,7 +1,5 @@
 # ragooder.github.io
 
-p5.js sketch running on GitHub pages.
-
-Designed to help understand dependencies between 2 events.
+Interactive web apps to help understand probability concepts. Built using p5.js.
 
 https://ragooder.github.io/
